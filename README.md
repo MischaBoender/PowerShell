@@ -1,7 +1,5 @@
-# PowerShell
+# PowerShell Stuff
 Useful and useless PowerShell Stuff I've created. **Use at your own risk!**
-
----
 
 ## Functions
 ### Select-FromList.ps1
