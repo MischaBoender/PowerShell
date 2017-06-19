@@ -59,6 +59,7 @@ The Highlight color to use
 The Lowlight color to use
 
 .NOTES
+Uses Read-Input function
 Created by Mischa@Boender.eu
 #>
 Function Select-FromList {
