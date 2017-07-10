@@ -15,5 +15,5 @@ Formats the output as a table with a per row foreground color. The function uses
 Tries to get the (NATted) public IP address of the client using up to 3 methods in this order: DNS query to "ifcfg.me", DNS query to "208.67.222.222" (OpenDNS) or as a last resort a WebRequest to "http://icanhazip.com".
 
 ## Scripts
-* **Use-LessIntelliSense.ps1**  
-Created this function at a PowerShell training (by Stefan Stranger) during a coffee break. This function will never execute successfully because it requires a (dynamic) switch parameter that has changed when you try to execute it.
+- **Use-LessIntelliSense.ps1**  
+I created this function at a PowerShell training (by Stefan Stranger) during a coffee break. This function will never execute successfully because it requires a (dynamic) switch parameter that has changed when you try to execute it.
