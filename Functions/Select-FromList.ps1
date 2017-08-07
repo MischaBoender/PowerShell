@@ -69,33 +69,19 @@ Function Select-FromList {
         [ValidateNotNullOrEmpty()]
         [object[]]$InputObject,
         [Parameter(ParameterSetName="Numbered")]
-        [Parameter(ParameterSetName="NumberedWithAdditionalProperty")]
-        [Parameter(ParameterSetName="NumberedWithAdditionalScriptBlock")]
         [switch]$Numbered,
         [Parameter(ParameterSetName="Numbered")]
-        [Parameter(ParameterSetName="NumberedWithAdditionalProperty")]
-        [Parameter(ParameterSetName="NumberedWithAdditionalScriptBlock")]
         [ValidateNotNullOrEmpty()]
         [int]$StartNumber=1,
         [Parameter(ParameterSetName="Alphanumeric", Mandatory=$True)]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalProperty", Mandatory=$True)]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalScriptBlock", Mandatory=$True)]
         [switch]$Alphanumeric,
         [Parameter(ParameterSetName="Alphanumeric")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalProperty")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalScriptBlock")]
         [switch]$UseAmpersandKey,
         [Parameter(ParameterSetName="Alphanumeric")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalProperty")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalScriptBlock")]
         [switch]$NoEnter,
         [Alias("ShowProperty")]
         [string]$DisplayProperty,
-        [Parameter(ParameterSetName="NumberedWithAdditionalProperty")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalProperty")]
         [string]$DisplayAdditionalProperty,
-        [Parameter(ParameterSetName="NumberedWithAdditionalScriptBlock")]
-        [Parameter(ParameterSetName="AlphanumericWithAdditionalScriptBlock")]
         [scriptblock]$DisplayAdditionalScriptBlock,
         [int]$ItemsPerPage = [int]::MaxValue,
         [switch]$ClearScreen,
@@ -257,13 +243,16 @@ Function Select-FromList {
 
         do {
             if ($Selected.Count -eq $List.Count) {
-                Write-Host "Selected $($Selected.Count) (ALL)" -ForegroundColor $LowlightColor
+                Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
             }
-            elseif ($Selected.Count -gt 0) {
-                Write-Host "Selected $($Selected.Count) ($([string]::Join(', ', ($Selected.Keys | %{$_}))))" -ForegroundColor $LowlightColor
+            elseif ($Selected.Count -eq 1) {
+                Write-Host "1 item selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
+            }
+            elseif ($Selected.Count -gt 1) {
+                Write-Host "$($Selected.Count) items selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
             }
             elseif ($Selected.Count -eq 0 -and $Multiple.IsPresent) {
-                Write-Host "Selected 0 (NONE)" -ForegroundColor $LowlightColor
+                Write-Host "No items selected" -ForegroundColor $LowlightColor
             }
 
             $UserInput = Read-Input -Prompt "Select" -SpecialCharacters $SpecialInputCharacters -AllowedCharacters $AllowedInputCharacters
