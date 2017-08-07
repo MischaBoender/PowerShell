@@ -25,4 +25,4 @@ I created this function at a PowerShell training (by Stefan Stranger) during a c
 Shows an error message claiming that the user caused an *expected* error.
 
 - **Start-RickRoll.ps1**  
-Rolls Rick acroos the title bar.
+Rolls Rick across the title bar.
