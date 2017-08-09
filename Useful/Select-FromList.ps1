@@ -49,8 +49,11 @@ Print the selection to the screen before returning to the pipeline
 .PARAMETER ItemsPerPage
 Maximum number of objects to display per page 
 
-.PARAMETER ClearScreen
-Clear the console before writing the list to the screen
+.PARAMETER ArrowKeysChangePage
+Allow user to use arrow keys to change pages, in addition to PageUp, PageDown, Home and End keys
+
+.PARAMETER ClearScreenOnPageChange
+Clear the console when changing pages
 
 .PARAMETER HighlightColor
 The Highlight color to use
@@ -58,13 +61,16 @@ The Highlight color to use
 .PARAMETER LowlightColor
 The Lowlight color to use
 
+.PARAMETER HelpColor
+The color to use for the builtin help
+
 .NOTES
 Uses Read-Input function
 Created by Mischa@Boender.eu
 #>
 Function Select-FromList {
     [CmdletBinding(DefaultParameterSetName="Numbered")]
-    Param(
+    param(
         [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
         [ValidateNotNullOrEmpty()]
         [object[]]$InputObject,
@@ -73,7 +79,7 @@ Function Select-FromList {
         [Parameter(ParameterSetName="Numbered")]
         [ValidateNotNullOrEmpty()]
         [int]$StartNumber=1,
-        [Parameter(ParameterSetName="Alphanumeric", Mandatory=$True)]
+        [Parameter(ParameterSetName="Alphanumeric")]
         [switch]$Alphanumeric,
         [Parameter(ParameterSetName="Alphanumeric")]
         [switch]$UseAmpersandKey,
@@ -84,17 +90,19 @@ Function Select-FromList {
         [string]$DisplayAdditionalProperty,
         [scriptblock]$DisplayAdditionalScriptBlock,
         [int]$ItemsPerPage = [int]::MaxValue,
-        [switch]$ClearScreen,
+        [switch]$ArrowKeysChangePage,
+        [switch]$ClearScreenOnPageChange,
         [switch]$Multiple,
         [switch]$AllowNone,
         [string]$ReturnProperty,
         [string]$Prompt = "Select",
         [switch]$ShowSelected=$false,
         [ConsoleColor]$HighlightColor = [ConsoleColor]::Cyan,
-        [ConsoleColor]$LowlightColor = [ConsoleColor]::DarkGray
+        [ConsoleColor]$LowlightColor = [ConsoleColor]::DarkGray,
+        [ConsoleColor]$HelpColor = [ConsoleColor]::Yellow
     )
     
-    Begin {
+    begin {
         if ($DisplayAdditionalProperty -and $DisplayAdditionalScriptBlock) {
             throw "Parameters `"DisplayAdditionalProperty`" and `"DisplayAdditionalScriptBlock`" cannot be used at the same time"
         }
@@ -111,7 +119,7 @@ Function Select-FromList {
         $AlphanumericKeys.Add("0", $null)
     }
     
-    Process {
+    process {
         foreach ($Object in $InputObject) {
             if ($DisplayProperty) {$OptionText = $Object.$DisplayProperty.ToString()} 
             else {$OptionText = $Object.ToString()}
@@ -185,7 +193,7 @@ Function Select-FromList {
         }
     }
     
-    End {
+    end {
         $SpecialInputCharacters = @("?")
         switch -wildcard ($PSCmdlet.ParameterSetName) {
             "Numbered*" {
@@ -211,15 +219,28 @@ Function Select-FromList {
             $SpecialInputCharacters += "*"
         }
         
-        if ($ItemsPerPage -ge $List.Count) {$ItemsPerPage = $List.Count}
+        if ($ItemsPerPage -ge $List.Count) {
+            $ItemsPerPage = $List.Count
+        }
         else {  
             $Paging = $true
-            $SpecialInputCharacters += "<"
-            $SpecialInputCharacters += ">"
+            $SpecialKeysMap = @{}
+
+            $SpecialKeysMap.Add("PageUp", "{<}")
+            $SpecialKeysMap.Add("PageDown", "{>}")
+            $SpecialKeysMap.Add("Home", "{^}")
+            $SpecialKeysMap.Add("End", "{_}")
+
+            if ($ArrowKeysChangePage.IsPresent) {
+                $SpecialKeysMap.Add("LeftArrow", "{<}")
+                $SpecialKeysMap.Add("RightArrow", "{>}")
+                $SpecialKeysMap.Add("UpArrow", "{^}")
+                $SpecialKeysMap.Add("DownArow", "{_}")
+            }
         }
 
         function ShowList {
-            if ($ClearScreen.IsPresent) {Clear-Host}
+            if ($ClearScreenOnPageChange.IsPresent) {Clear-Host}
             Write-Host "`n$Prompt" -ForegroundColor $HighlightColor
             foreach ($Key in ($List.Keys | Select-Object -First $ItemsPerPage -Skip (($CurrentPage - 1) * $ItemsPerPage))) {
                 Write-Host "  $Key" -ForegroundColor $HighlightColor -NoNewline
@@ -236,45 +257,61 @@ Function Select-FromList {
                 Write-Host " | " -NoNewline -ForegroundColor $LowlightColor
             }
             Write-Host "Press '?' for help" -ForegroundColor $LowlightColor
-            Write-Host ""
         }
 
         ShowList
 
+        $NoPrompt = $false
         do {
-            if ($Selected.Count -eq $List.Count) {
-                Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
-            }
-            elseif ($Selected.Count -eq 1) {
-                Write-Host "1 item selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
-            }
-            elseif ($Selected.Count -gt 1) {
-                Write-Host "$($Selected.Count) items selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
-            }
-            elseif ($Selected.Count -eq 0 -and $Multiple.IsPresent) {
-                Write-Host "No items selected" -ForegroundColor $LowlightColor
+            if (-not $NoPrompt) {
+                Write-Host ""
+                if ($Selected.Count -eq $List.Count) {
+                    Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
+                }
+                elseif ($Selected.Count -eq 1) {
+                    Write-Host "1 item selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
+                }
+                elseif ($Selected.Count -gt 1) {
+                    Write-Host "$($Selected.Count) items selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
+                }
+                elseif ($Selected.Count -eq 0 -and $Multiple.IsPresent) {
+                    Write-Host "No items selected" -ForegroundColor $LowlightColor
+                }
             }
 
-            $UserInput = Read-Input -Prompt "Select" -SpecialCharacters $SpecialInputCharacters -AllowedCharacters $AllowedInputCharacters
+            $UserInput = Read-Input -Prompt "Select" `
+                -NoPrompt:$NoPrompt `
+                -NoNewLine:$true `
+                -SpecialCharacters $SpecialInputCharacters `
+                -AllowedCharacters $AllowedInputCharacters `
+                -SpecialKeysMap $SpecialKeysMap
+            $NoPrompt = $false
             if ($UserInput -and $UserInput.Length -gt 0) {$UserInput = $UserInput.ToUpper()}
 
             if ($UserInput -eq "?") {
                 Write-Host ""
                 if ($Multiple.IsPresent) {
-                    Write-Host "Select one or more objects from the list" -ForegroundColor Yellow
-                    Write-Host "Use '*' to select/deselect all objects" -ForegroundColor Yellow
-                    Write-Host "Leave empty to continue" -ForegroundColor Yellow
+                    Write-Host "Select one or more objects from the list ('*' (de)selects all objects). Leave empty to continue." -ForegroundColor $HelpColor
                 }
                 else {
-                    Write-Host "Select one object from the list" -ForegroundColor Yellow
-                    if (-not $NoEnter.IsPresent) {
-                        Write-Host "and press 'Enter' to continue" -ForegroundColor Yellow
+                    Write-Host "Select an object from the list" -NoNewLine -ForegroundColor $HelpColor
+                    if ($NoEnter.IsPresent) {
+                        Write-Host "." -ForegroundColor $HelpColor
+                    }
+                    else {
+                        Write-Host " and press 'Enter' to continue." -ForegroundColor $HelpColor
                     }
                 }
                 if ($Paging) {
-                    Write-Host "Use '<' and '>' to change pages" -ForegroundColor Yellow
+                    Write-Host "Use PageUp, PageDown, Home" -NoNewLine -ForegroundColor $HelpColor
+                    if ($ArrowKeysChangePage.IsPresent) {
+                        Write-Host ", End and Arrow " -NoNewLine -ForegroundColor $HelpColor
+                    }
+                    else {
+                        Write-Host " and End " -NoNewLine -ForegroundColor $HelpColor
+                    }
+                    Write-Host "keys to change pages." -ForegroundColor $HelpColor
                 }
-                Write-Host ""
             }
             elseif ($UserInput -eq "*") {
                 if ($Selected.Count -eq $List.Count) {
@@ -283,18 +320,6 @@ Function Select-FromList {
                 else {
                     $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
                     foreach ($Key in $List.Keys) {$Selected.Add($Key, $List[$Key])}
-                }
-            }
-            elseif ($Paging -and $UserInput -eq "<") {
-                if ($CurrentPage -gt 1) {
-                    $CurrentPage -= 1
-                    ShowList
-                }
-            }
-            elseif ($Paging -and $UserInput -eq ">") {
-                if ($CurrentPage -lt [Math]::Ceiling($List.Count / $ItemsPerPage)) {
-                    $CurrentPage = $CurrentPage += 1
-                    ShowList
                 }
             }
             elseif ($UserInput -eq $null) {
@@ -306,16 +331,40 @@ Function Select-FromList {
             elseif ($List.Contains($UserInput)) {
                 $Selected.Add($UserInput, $List[$UserInput])
             }
+            elseif ($Paging -and -not [string]::IsNullOrWhiteSpace($UserInput)) {
+                if ($UserInput -eq "{<}" -and $CurrentPage -gt 1) {
+                    Write-Host "{PageUp}"
+                    $CurrentPage -= 1
+                    ShowList
+                }
+                elseif ($UserInput -eq "{>}" -and $CurrentPage -lt [Math]::Ceiling($List.Count / $ItemsPerPage)) {
+                    Write-Host "{PageDown}"
+                    $CurrentPage = $CurrentPage += 1
+                    ShowList
+                }
+                elseif ($UserInput -eq "{^}" -and $CurrentPage -ne 1) {
+                    Write-Host "{Home}"
+                    $CurrentPage = 1
+                    ShowList
+                }
+                elseif ($UserInput -eq "{_}" -and $CurrentPage -ne [Math]::Ceiling($List.Count / $ItemsPerPage)) {
+                    Write-Host "{End}"
+                    $CurrentPage = [Math]::Ceiling($List.Count / $ItemsPerPage)
+                    ShowList
+                }
+                else {$NoPrompt = $true}
+            }
             elseif (-not [string]::IsNullOrWhiteSpace($UserInput)) {
                 Write-Host "Selection incorrect" -ForegroundColor $HighlightColor
             }
         } while (-not ([string]::IsNullOrWhiteSpace($UserInput) -or (-not $Multiple.IsPresent -and $Selected.Count -eq 1)))
-        
+        Write-Host ""
+
         if ($Selected.Count -eq 0 -and -not $AllowNone.IsPresent) {
             throw "Nothing selected"
         }
         elseif ($Selected.Count -eq 0 -and $AllowNone.IsPresent) {
-            Return $null
+            return $null
         }
         else {
             foreach ($Key in $Selected.Keys) {

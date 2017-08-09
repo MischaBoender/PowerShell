@@ -1,11 +1,14 @@
 function Read-Input {
     param(
         $Prompt = "Select",
+        [switch]$NoPrompt,
+        [switch]$NoNewLine,
         [string[]]$AllowedCharacters = "A-Za-z0-9",
         [string[]]$SpecialCharacters = "",
-        [switch]$CaseSensitive
+        [switch]$CaseSensitive,
+        [hashtable]$SpecialKeysMap
     )
-    
+
     if ($CaseSensitive.IsPresent) {$RegexModifier = "(?-i)"}
     else {$RegexModifier = "(?i)"}
 
@@ -27,7 +30,7 @@ function Read-Input {
     $UserInput = ""
 
     [console]::TreatControlCAsInput = $true
-    Write-Host "$Prompt`: " -NoNewline
+    if (-not $NoPrompt.IsPresent) {Write-Host "$Prompt`: " -NoNewline}
     do {
         $Key = [System.Console]::ReadKey($true)
         $KeyString = $Key.KeyChar.ToString()
@@ -54,10 +57,13 @@ function Read-Input {
             $UserInput = $null
             break
         }
-    }
-    while ($true)
+        elseif ($SpecialKeysMap -and $SpecialKeysMap.ContainsKey($Key.Key.ToString()) -and $UserInput.Length -eq 0) {
+            $UserInput = $SpecialKeysMap[$Key.Key.ToString()]
+            break
+        }
+    } while ($true)
     [console]::TreatControlCAsInput = $TreatControlCAsInput
-    Write-Host ""
-
-    Return $UserInput
+    if (-not $NoNewLine.IsPresent) {Write-Host ""}
+    
+    return $UserInput
 }
