@@ -6,7 +6,8 @@ function Read-Input {
         [string[]]$AllowedCharacters = "A-Za-z0-9",
         [string[]]$SpecialCharacters = "",
         [switch]$CaseSensitive,
-        [hashtable]$SpecialKeysMap
+        [hashtable]$SpecialKeysMap,
+        [switch]$AllowEscape
     )
 
     if ($CaseSensitive.IsPresent) {$RegexModifier = "(?-i)"}
@@ -54,6 +55,10 @@ function Read-Input {
             break
         }
         elseif ($Key.Modifiers -band [consolemodifiers]"control" -and $Key.Key -eq "C") {
+            Write-Host ""
+            throw "Control-C"
+        }
+        elseif ($AllowEscape.IsPresent -and $Key.Key.ToString() -eq "Escape") {
             $UserInput = $null
             break
         }
