@@ -49,9 +49,6 @@ Print the selection to the screen before returning to the pipeline
 .PARAMETER ItemsPerPage
 Maximum number of objects to display per page 
 
-.PARAMETER ArrowKeysChangePage
-Allow user to use arrow keys to change pages, in addition to PageUp, PageDown, Home and End keys
-
 .PARAMETER ClearScreenOnPageChange
 Clear the console when changing pages
 
@@ -63,6 +60,12 @@ The Lowlight color to use
 
 .PARAMETER HelpColor
 The color to use for the builtin help
+
+.PARAMETER Process
+Scriptblock to process selected objects before returning
+
+.PARAMETER ShowListWhenProcessReturnsNull
+If the process block returns $null the list selection is restarted
 
 .NOTES
 Uses Read-Input function
@@ -90,16 +93,18 @@ Function Select-FromList {
         [string]$DisplayAdditionalProperty,
         [scriptblock]$DisplayAdditionalScriptBlock,
         [int]$ItemsPerPage = [int]::MaxValue,
-        [switch]$ArrowKeysChangePage,
         [switch]$ClearScreenOnPageChange,
         [switch]$Multiple,
         [switch]$AllowNone,
+        [switch]$AllowEscape,
         [string]$ReturnProperty,
         [string]$Prompt = "Select",
         [switch]$ShowSelected=$false,
         [ConsoleColor]$HighlightColor = [ConsoleColor]::Cyan,
         [ConsoleColor]$LowlightColor = [ConsoleColor]::DarkGray,
-        [ConsoleColor]$HelpColor = [ConsoleColor]::Yellow
+        [ConsoleColor]$HelpColor = [ConsoleColor]::Yellow,
+        [scriptblock]$Process,
+        [switch]$ShowListWhenProcessReturnsNull
     )
     
     begin {
@@ -226,17 +231,15 @@ Function Select-FromList {
             $Paging = $true
             $SpecialKeysMap = @{}
 
-            $SpecialKeysMap.Add("PageUp", "{<}")
-            $SpecialKeysMap.Add("PageDown", "{>}")
-            $SpecialKeysMap.Add("Home", "{^}")
-            $SpecialKeysMap.Add("End", "{_}")
+            $SpecialKeysMap.Add("PageUp", "{PrevPage}")
+            $SpecialKeysMap.Add("PageDown", "{NextPage}")
+            $SpecialKeysMap.Add("Home", "{FirstPage}")
+            $SpecialKeysMap.Add("End", "{LastPage}")
 
-            if ($ArrowKeysChangePage.IsPresent) {
-                $SpecialKeysMap.Add("LeftArrow", "{<}")
-                $SpecialKeysMap.Add("RightArrow", "{>}")
-                $SpecialKeysMap.Add("UpArrow", "{^}")
-                $SpecialKeysMap.Add("DownArow", "{_}")
-            }
+            $SpecialKeysMap.Add("LeftArrow", "{PrevPage}")
+            $SpecialKeysMap.Add("RightArrow", "{NextPage}")
+            $SpecialKeysMap.Add("UpArrow", "{FirstPage}")
+            $SpecialKeysMap.Add("DownArrow", "{LastPage}")
         }
 
         function ShowList {
@@ -259,126 +262,150 @@ Function Select-FromList {
             Write-Host "Press '?' for help" -ForegroundColor $LowlightColor
         }
 
-        ShowList
+        function ShowHelp {
+            Write-Host ""
+            if ($Multiple.IsPresent) {
+                Write-Host "Select one or more objects from the list ('*' (de)selects all objects). Leave empty to continue." -ForegroundColor $HelpColor
+            }
+            else {
+                Write-Host "Select an object from the list" -NoNewLine -ForegroundColor $HelpColor
+                if (-not $NoEnter.IsPresent) {
+                    Write-Host " and press 'Enter' to continue" -NoNewline -ForegroundColor $HelpColor
+                }
+                if ($AllowEscape.IsPresent) {
+                    Write-Host ", or press 'Escape' to exit" -NoNewline -ForegroundColor $HelpColor
+                }
+                Write-Host "." -ForegroundColor $HelpColor
+            }
 
-        $NoPrompt = $false
+            if ($Paging) {
+                Write-Host "Use PageUp, PageDown, Home, End and Arrow keys to change pages." -ForegroundColor $HelpColor
+            }
+        }
+
         do {
-            if (-not $NoPrompt) {
-                Write-Host ""
-                if ($Selected.Count -eq $List.Count) {
-                    Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
-                }
-                elseif ($Selected.Count -eq 1) {
-                    Write-Host "1 item selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
-                }
-                elseif ($Selected.Count -gt 1) {
-                    Write-Host "$($Selected.Count) items selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
-                }
-                elseif ($Selected.Count -eq 0 -and $Multiple.IsPresent) {
-                    Write-Host "No items selected" -ForegroundColor $LowlightColor
-                }
-            }
+            ShowList
 
-            $UserInput = Read-Input -Prompt "Select" `
-                -NoPrompt:$NoPrompt `
-                -NoNewLine:$true `
-                -SpecialCharacters $SpecialInputCharacters `
-                -AllowedCharacters $AllowedInputCharacters `
-                -SpecialKeysMap $SpecialKeysMap
+            $RestartList = $false
             $NoPrompt = $false
-            if ($UserInput -and $UserInput.Length -gt 0) {$UserInput = $UserInput.ToUpper()}
-
-            if ($UserInput -eq "?") {
-                Write-Host ""
-                if ($Multiple.IsPresent) {
-                    Write-Host "Select one or more objects from the list ('*' (de)selects all objects). Leave empty to continue." -ForegroundColor $HelpColor
+            do {
+                if (-not $NoPrompt) {
+                    Write-Host ""
+                    if ($Selected.Count -eq $List.Count) {
+                        Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
+                    }
+                    elseif ($Selected.Count -eq 1) {
+                        Write-Host "1 item selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
+                    }
+                    elseif ($Selected.Count -gt 1) {
+                        Write-Host "$($Selected.Count) items selected: $([string]::Join(', ', ($Selected.Keys | %{$_})))" -ForegroundColor $LowlightColor
+                    }
+                    elseif ($Selected.Count -eq 0 -and $Multiple.IsPresent) {
+                        Write-Host "No items selected" -ForegroundColor $LowlightColor
+                    }
                 }
-                else {
-                    Write-Host "Select an object from the list" -NoNewLine -ForegroundColor $HelpColor
-                    if ($NoEnter.IsPresent) {
-                        Write-Host "." -ForegroundColor $HelpColor
+
+                $UserInput = Read-Input -Prompt "Select" `
+                    -NoPrompt:$NoPrompt `
+                    -NoNewLine:$true `
+                    -SpecialCharacters $SpecialInputCharacters `
+                    -AllowedCharacters $AllowedInputCharacters `
+                    -SpecialKeysMap $SpecialKeysMap `
+                    -AllowEscape:$AllowEscape.IsPresent
+                $NoPrompt = $false
+                if ($UserInput -and $UserInput.Length -gt 0) {$UserInput = $UserInput.ToUpper()}
+
+                if ($UserInput -eq "?") {
+                    ShowHelp
+                }
+                elseif ($UserInput -eq "*") {
+                    if ($Selected.Count -eq $List.Count) {
+                        $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
                     }
                     else {
-                        Write-Host " and press 'Enter' to continue." -ForegroundColor $HelpColor
+                        $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
+                        foreach ($Key in $List.Keys) {$Selected.Add($Key, $List[$Key])}
                     }
                 }
-                if ($Paging) {
-                    Write-Host "Use PageUp, PageDown, Home" -NoNewLine -ForegroundColor $HelpColor
-                    if ($ArrowKeysChangePage.IsPresent) {
-                        Write-Host ", End and Arrow " -NoNewLine -ForegroundColor $HelpColor
+                elseif ($UserInput -ne $null -and $Selected.Contains($UserInput)) {
+                    $Selected.Remove($UserInput)
+                }
+                elseif ($UserInput -ne $null -and $List.Contains($UserInput)) {
+                    $Selected.Add($UserInput, $List[$UserInput])
+                }
+                elseif ($Paging -and -not [string]::IsNullOrWhiteSpace($UserInput)) {
+                    if ($UserInput -eq "{PrevPage}" -and $CurrentPage -gt 1) {
+                        Write-Host "{PrevPage}"
+                        $CurrentPage -= 1
+                        ShowList
+                    }
+                    elseif ($UserInput -eq "{NextPage}" -and $CurrentPage -lt [Math]::Ceiling($List.Count / $ItemsPerPage)) {
+                        Write-Host "{NextPage}"
+                        $CurrentPage = $CurrentPage += 1
+                        ShowList
+                    }
+                    elseif ($UserInput -eq "{FirstPage}" -and $CurrentPage -ne 1) {
+                        Write-Host "{FirstPage}"
+                        $CurrentPage = 1
+                        ShowList
+                    }
+                    elseif ($UserInput -eq "{LastPage}" -and $CurrentPage -ne [Math]::Ceiling($List.Count / $ItemsPerPage)) {
+                        Write-Host "{LastPage}"
+                        $CurrentPage = [Math]::Ceiling($List.Count / $ItemsPerPage)
+                        ShowList
+                    }
+                    else {$NoPrompt = $true}
+                }
+                elseif ($UserInput -eq $null -and $AllowEscape.IsPresent) {
+                    return $null
+                }
+                elseif ($UserInput -eq "") {
+                    $NoPrompt = $true
+                }
+                elseif (-not [string]::IsNullOrWhiteSpace($UserInput)) {
+                    Write-Host ""
+                    Write-Host "Selection incorrect" -NoNewline -ForegroundColor $HighlightColor
+                }
+            } while (($UserInput -eq "" -and $Selected.Count -eq 0 -and -not $AllowNone.IsPresent) -or -not ([string]::IsNullOrWhiteSpace($UserInput) -or (-not $Multiple.IsPresent -and $Selected.Count -eq 1)))
+            Write-Host ""
+
+            if ($Selected.Count -eq 0 -and -not $AllowNone.IsPresent) {
+                throw "Nothing selected"
+            }
+            elseif ($Selected.Count -eq 0 -and $AllowNone.IsPresent) {
+                return $null
+            }
+            else {
+                $ReturnObjects = @()
+
+                foreach ($Key in $Selected.Keys) {
+                    if ($ShowSelected) {
+                        Write-Host "`"$($Selected[$Key].OptionText)`" selected." -ForegroundColor $HighlightColor
+                    }
+
+                    if ($ReturnProperty) { 
+                        $ReturnObjects += $Selected[$Key].Object.$ReturnProperty
                     }
                     else {
-                        Write-Host " and End " -NoNewLine -ForegroundColor $HelpColor
+                        $ReturnObjects += $Selected[$Key].Object
                     }
-                    Write-Host "keys to change pages." -ForegroundColor $HelpColor
-                }
-            }
-            elseif ($UserInput -eq "*") {
-                if ($Selected.Count -eq $List.Count) {
-                    $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
-                }
-                else {
-                    $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
-                    foreach ($Key in $List.Keys) {$Selected.Add($Key, $List[$Key])}
-                }
-            }
-            elseif ($UserInput -eq $null) {
-                return
-            }
-            elseif ($Selected.Contains($UserInput)) {
-                $Selected.Remove($UserInput)
-            }
-            elseif ($List.Contains($UserInput)) {
-                $Selected.Add($UserInput, $List[$UserInput])
-            }
-            elseif ($Paging -and -not [string]::IsNullOrWhiteSpace($UserInput)) {
-                if ($UserInput -eq "{<}" -and $CurrentPage -gt 1) {
-                    Write-Host "{PageUp}"
-                    $CurrentPage -= 1
-                    ShowList
-                }
-                elseif ($UserInput -eq "{>}" -and $CurrentPage -lt [Math]::Ceiling($List.Count / $ItemsPerPage)) {
-                    Write-Host "{PageDown}"
-                    $CurrentPage = $CurrentPage += 1
-                    ShowList
-                }
-                elseif ($UserInput -eq "{^}" -and $CurrentPage -ne 1) {
-                    Write-Host "{Home}"
-                    $CurrentPage = 1
-                    ShowList
-                }
-                elseif ($UserInput -eq "{_}" -and $CurrentPage -ne [Math]::Ceiling($List.Count / $ItemsPerPage)) {
-                    Write-Host "{End}"
-                    $CurrentPage = [Math]::Ceiling($List.Count / $ItemsPerPage)
-                    ShowList
-                }
-                else {$NoPrompt = $true}
-            }
-            elseif (-not [string]::IsNullOrWhiteSpace($UserInput)) {
-                Write-Host "Selection incorrect" -ForegroundColor $HighlightColor
-            }
-        } while (-not ([string]::IsNullOrWhiteSpace($UserInput) -or (-not $Multiple.IsPresent -and $Selected.Count -eq 1)))
-        Write-Host ""
-
-        if ($Selected.Count -eq 0 -and -not $AllowNone.IsPresent) {
-            throw "Nothing selected"
-        }
-        elseif ($Selected.Count -eq 0 -and $AllowNone.IsPresent) {
-            return $null
-        }
-        else {
-            foreach ($Key in $Selected.Keys) {
-                if ($ShowSelected) {
-                    Write-Host "`"$($Selected[$Key].OptionText)`" selected." -ForegroundColor $HighlightColor
                 }
 
-                if ($ReturnProperty) { 
-                    Write-Output $Selected[$Key].Object.$ReturnProperty
+                if ($Process) {
+                    $ProcessesObjects = $ReturnObjects | &$Process
+                    if ($ProcessesObjects) {
+                        return $ProcessesObjects
+                    }
+                    elseif ($ShowListWhenProcessReturnsNull) {
+                        $RestartList = $true
+                        $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
+                        Write-Host ""
+                    }
                 }
                 else {
-                    Write-Output $Selected[$Key].Object
+                    return $ReturnObjects
                 }
             }
-        }
+        } while ($RestartList)
     }
 }
