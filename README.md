@@ -1,7 +1,9 @@
 # PowerShell Stuff
 Useful and useless PowerShell Stuff I've created. **Use at your own risk!**
 
-## Useful
+## Scripts
+Colleaction of random scripts
+
 - **Select-FromList.ps1**  
 This function presents the user with a on-screen list of objects and allows the user to select which objects continue through the pipeline. *Uses the Read-Input function*.
 
@@ -17,7 +19,12 @@ Tries to get the (NATted) public IP address of the client using up to 3 methods 
 - **New-TypeDefinition.ps1**
 Helper function for creating .NET types. *Still a work in progress!*
 
-## Useless
+## PowerFIGlet
+PowerShell implementation of FIGlet
+
+## Use-LessStuff
+All useless PowerShell stuff goes here
+
 - **Use-LessIntelliSense.ps1**  
 I created this function at a PowerShell training (by Stefan Stranger) during a coffee break. This function will never execute successfully because it requires a (dynamic) switch parameter that has changed when you try to execute it.
 
@@ -26,3 +33,5 @@ Shows an error message claiming that the user caused an *expected* error.
 
 - **Start-RickRoll.ps1**  
 Rolls Rick across the title bar.
+
+
