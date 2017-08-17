@@ -104,7 +104,8 @@ Function Select-FromList {
         [ConsoleColor]$LowlightColor = [ConsoleColor]::DarkGray,
         [ConsoleColor]$HelpColor = [ConsoleColor]::Yellow,
         [scriptblock]$Process,
-        [switch]$ShowListWhenProcessReturnsNull
+        [ValidateSet("OnNull","Always")]
+        [string]$ReturnFromProcess
     )
     
     begin {
@@ -199,29 +200,20 @@ Function Select-FromList {
     }
     
     end {
-        $SpecialInputCharacters = @("?")
         switch -wildcard ($PSCmdlet.ParameterSetName) {
             "Numbered*" {
                 $AllowedInputCharacters = "0-9"
             }
             "Alphanumeric*" {
-                if ($NoEnter.IsPresent) {
-                    $AllowedInputCharacters = @()
-                    $List.Keys | %{
-                        $SpecialInputCharacters += $_
-                    }
-                }
-                else {
-                    $AllowedInputCharacters = @()
-                    $List.Keys | %{
-                        $AllowedInputCharacters += $_
-                    }
-                }
+                $AllowedInputCharacters = $List.Keys.Clone()
             }
         }
 
+        $SpecialKeysMap = @{}
+        $SpecialKeysMap.Add("?", "?")
+        
         if ($Multiple.IsPresent) {
-            $SpecialInputCharacters += "*"
+            $SpecialKeysMap.Add("*", "*")
         }
         
         if ($ItemsPerPage -ge $List.Count) {
@@ -229,7 +221,6 @@ Function Select-FromList {
         }
         else {  
             $Paging = $true
-            $SpecialKeysMap = @{}
 
             $SpecialKeysMap.Add("PageUp", "{PrevPage}")
             $SpecialKeysMap.Add("PageDown", "{NextPage}")
@@ -287,9 +278,9 @@ Function Select-FromList {
             ShowList
 
             $RestartList = $false
-            $NoPrompt = $false
+            $Prompt = "Select"
             do {
-                if (-not $NoPrompt) {
+                if ($Prompt) {
                     Write-Host ""
                     if ($Selected.Count -eq $List.Count) {
                         Write-Host "$($Selected.Count) items selected: ALL" -ForegroundColor $LowlightColor
@@ -305,14 +296,18 @@ Function Select-FromList {
                     }
                 }
 
-                $UserInput = Read-Input -Prompt "Select" `
-                    -NoPrompt:$NoPrompt `
-                    -NoNewLine:$true `
-                    -SpecialCharacters $SpecialInputCharacters `
-                    -AllowedCharacters $AllowedInputCharacters `
-                    -SpecialKeysMap $SpecialKeysMap `
-                    -AllowEscape:$AllowEscape.IsPresent
-                $NoPrompt = $false
+                $ReadInputParameters = @{
+                    Prompt = $Prompt
+                    NoNewLine = [switch]::Present
+                    AllowedCharacters = $AllowedInputCharacters
+                    SpecialKeysMap = $SpecialKeysMap
+                    AllowEscape = $AllowEscape.IsPresent
+                    SingleCharacter = $NoEnter.IsPresent
+                }
+
+                $UserInput = Read-Input @ReadInputParameters
+                $Prompt = "Select"
+
                 if ($UserInput -and $UserInput.Length -gt 0) {$UserInput = $UserInput.ToUpper()}
 
                 if ($UserInput -eq "?") {
@@ -354,13 +349,13 @@ Function Select-FromList {
                         $CurrentPage = [Math]::Ceiling($List.Count / $ItemsPerPage)
                         ShowList
                     }
-                    else {$NoPrompt = $true}
+                    else {$Prompt = $null}
                 }
                 elseif ($UserInput -eq $null -and $AllowEscape.IsPresent) {
                     return $null
                 }
                 elseif ($UserInput -eq "") {
-                    $NoPrompt = $true
+                    $Prompt = $null
                 }
                 elseif (-not [string]::IsNullOrWhiteSpace($UserInput)) {
                     Write-Host ""
@@ -392,11 +387,18 @@ Function Select-FromList {
                 }
 
                 if ($Process) {
-                    $ProcessesObjects = $ReturnObjects | &$Process
-                    if ($ProcessesObjects) {
-                        return $ProcessesObjects
+                    $ProcessedObjects = $ReturnObjects | &$Process
+
+                    if ($ReturnFromProcess -eq "OnNull" -and $ProcessedObjects) {
+                        return $ProcessedObjects
                     }
-                    elseif ($ShowListWhenProcessReturnsNull) {
+                    elseif ($ReturnFromProcess -eq "Always" -and $ProcessedObjects) {
+                        Write-Output $ProcessedObjects
+                        $RestartList = $true
+                        $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
+                        Write-Host ""
+                    }
+                    elseif ($ReturnFromProcess -eq "OnNull") {
                         $RestartList = $true
                         $Selected = [System.Collections.Specialized.OrderedDictionary]@{}
                         Write-Host ""
