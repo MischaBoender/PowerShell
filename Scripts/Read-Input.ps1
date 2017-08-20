@@ -20,7 +20,7 @@ function Read-Input {
             $AllowedCharactersRegex = "(?i)^[$([regex]::Escape([string]::Join('', $AllowedCharacters)))]$"
         }
     }
-    else {$AllowedCharactersRegex = ".+"}
+    else {$AllowedCharactersRegex = "[ -~]+"}
 
     if ($DefaultValue) {$UserInput = $DefaultValue}
     else {$UserInput = ""}
@@ -32,49 +32,59 @@ function Read-Input {
     Write-Host $UserInput -NoNewline
 
     do {
-        $Key = [System.Console]::ReadKey($true)
-        $KeyString = $Key.KeyChar.ToString()
+        do {
+            $Key = [System.Console]::ReadKey($true)
+            $KeyString = $Key.KeyChar.ToString()
 
-        if (-not [int][char]$KeyString) {
-            $KeyString = $null
-        }
-
-        if ($Key.Modifiers -band [consolemodifiers]"control" -and $Key.Key -eq "C") {
-            Write-Host ""
-            [console]::TreatControlCAsInput = $TreatControlCAsInput
-            throw "Control-C"
-        }
-        elseif ($Key.Key -eq "Enter") {
-            break
-        }
-        elseif ($Key.Key -eq "Backspace") {
-            if ($UserInput.Length -gt 0) {
-                $UserInput = $UserInput.Substring(0, $UserInput.Length - 1)
-                Write-Host "`b `b" -NoNewline
+            if (-not [int][char]$KeyString) {
+                $KeyString = $null
             }
-        }
-        elseif ($Key.Key -eq "Escape" -and $AllowEscape.IsPresent) {
-            $UserInput = $null
-            break
-        }
-        elseif ($SpecialKeysMap -and $SpecialKeysMap.ContainsKey($Key.Key.ToString()) -and $UserInput.Length -eq 0) {
-            $UserInput = $SpecialKeysMap[$Key.Key.ToString()]
-            break
-        }
-        elseif ($SpecialKeysMap -and $SpecialKeysMap.ContainsKey($Key.KeyChar.ToString()) -and $UserInput.Length -eq 0) {
-            $UserInput = $SpecialKeysMap[$Key.KeyChar.ToString()]
-            break
-        }
-        elseif ($KeyString -match $AllowedCharactersRegex) {
-            if ($SingleCharacter.IsPresent) {
-                $UserInput = $KeyString
+
+            if ($Key.Modifiers -band [consolemodifiers]"control" -and $Key.Key -eq "C") {
+                Write-Host ""
+                [console]::TreatControlCAsInput = $TreatControlCAsInput
+                throw "Control-C"
+            }
+            elseif ($Key.Key -eq "Enter") {
                 break
             }
-            else {
-                $UserInput += $KeyString
+            elseif ($Key.Key -eq "Backspace") {
+                if ($UserInput.Length -gt 0) {
+                    $UserInput = $UserInput.Substring(0, $UserInput.Length - 1)
+                    Write-Host "`b `b" -NoNewline
+                }
             }
+            elseif ($Key.Key -eq "Escape" -and $AllowEscape.IsPresent) {
+                $UserInput = $null
+                break
+            }
+            elseif ($SpecialKeysMap -and $SpecialKeysMap.ContainsKey($Key.Key.ToString()) -and $UserInput.Length -eq 0) {
+                $UserInput = $SpecialKeysMap[$Key.Key.ToString()]
+                break
+            }
+            elseif ($SpecialKeysMap -and $SpecialKeysMap.ContainsKey($Key.KeyChar.ToString()) -and $UserInput.Length -eq 0) {
+                $UserInput = $SpecialKeysMap[$Key.KeyChar.ToString()]
+                break
+            }
+            elseif ($KeyString -match $AllowedCharactersRegex) {
+                Write-Host $KeyString -NoNewline
+                if ($SingleCharacter.IsPresent) {
+                    $UserInput = $KeyString
+                    break
+                }
+                else {
+                    $UserInput += $KeyString
+                }
+            }
+        } while ($true)
+
+        if (-not ($Key.Key -eq "Escape" -and $AllowEscape.IsPresent) -and ($ValidatePattern -and $UserInput -notmatch $ValidatePattern)) {
+            Write-Host ""
+            if ($ValidatePatternTip) {Write-Host $ValidatePatternTip -ForegroundColor DarkGray}
+            if (-not [string]::IsNullOrEmpty($Prompt)) {Write-Host "$Prompt`: " -NoNewline}
+            Write-Host $UserInput -NoNewline
         }
-    } while ($true)
+    } while (($ValidatePattern -and $UserInput -notmatch $ValidatePattern) -and -not ($Key.Key -eq "Escape" -and $AllowEscape.IsPresent))
 
     [console]::TreatControlCAsInput = $TreatControlCAsInput
     if (-not $NoNewLine.IsPresent) {Write-Host ""}
