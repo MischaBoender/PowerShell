@@ -10,6 +10,9 @@ This function presents the user with a on-screen list of objects and allows the 
 - **Read-Input.ps1**  
 Get user input, but restricted to pre-defined allowed characters. Also has a *SingleCharacterMode* and ability to handle special keys, for example  PageUp/Down, Arrow keys, etc.
 
+- **Read-MultiLine.ps1**
+Like the default Read-Host, but allowes multi-line. Use Ctrl+Enter to submit the input.
+
 - **Format-ColoredTable.ps1**  
 Formats the output as a table with a per row foreground color. The function uses dynamic parameters to add all possible console colors as a parameter that accepts scriptblock. If the InputObject passes through this scriptblock the resulting output row will be colored.
 
