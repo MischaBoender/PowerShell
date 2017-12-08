@@ -49,7 +49,7 @@ Print the selection to the screen before returning to the pipeline
 .PARAMETER ItemsPerPage
 Maximum number of objects to display per page 
 
-.PARAMETER ClearScreenOnPageChange
+.PARAMETER ClearScreen
 Clear the console when changing pages
 
 .PARAMETER HighlightColor
@@ -93,7 +93,7 @@ Function Select-FromList {
         [string]$DisplayAdditionalProperty,
         [scriptblock]$DisplayAdditionalScriptBlock,
         [int]$ItemsPerPage = [int]::MaxValue,
-        [switch]$ClearScreenOnPageChange,
+        [switch]$ClearScreen,
         [switch]$Multiple,
         [switch]$AllowNone,
         [switch]$AllowEscape,
@@ -234,7 +234,7 @@ Function Select-FromList {
         }
 
         function ShowList {
-            if ($ClearScreenOnPageChange.IsPresent) {Clear-Host}
+            if ($ClearScreen.IsPresent) {Clear-Host}
             Write-Host "`n$Prompt" -ForegroundColor $HighlightColor
             foreach ($Key in ($List.Keys | Select-Object -First $ItemsPerPage -Skip (($CurrentPage - 1) * $ItemsPerPage))) {
                 Write-Host "  $Key" -ForegroundColor $HighlightColor -NoNewline
