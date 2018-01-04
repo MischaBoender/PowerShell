@@ -19,6 +19,9 @@ Formats the output as a table with a per row foreground color. The function uses
 - **Get-MyPublicIPAddress.ps1**  
 Tries to get the (NATted) public IP address of the client using up to 3 methods in this order: DNS query to "ifcfg.me", DNS query to "208.67.222.222" (OpenDNS) or as a last resort a WebRequest to "http://icanhazip.com".
 
+- **Test-TraceRoute.ps1**
+PowerShell TraceRoute using .NET.
+
 - **New-TypeDefinition.ps1**
 Helper function for creating .NET types. *Still a work in progress!*
 
