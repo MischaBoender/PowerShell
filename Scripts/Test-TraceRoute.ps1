@@ -17,7 +17,7 @@ function Test-TraceRoute {
 
         [PSCustomObject]@{
             Hop = $TTL
-            Address = $(if ($PingReply.Address) {$PingReply.Address} else {"*"})
+            Address = $(if ($PingReply.Address) {$PingReply.Address.ToString()} else {"*"})
             RoundtripTime = $PingReply.RoundtripTime
             Complete = $PingReply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success
         } | Write-Output
